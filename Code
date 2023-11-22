@@ -1,0 +1,155 @@
+import tkinter as tk
+from tkinter import scrolledtext
+from tkinter import ttk
+import pyttsx3
+import speech_recognition as sr
+from language_tool_python import LanguageTool
+
+# Initialize the pyttsx3 engine
+engine = pyttsx3.init()
+engine.setProperty('rate', 150)  # Set the default speed to 150 words per minute
+
+# Initialize the recognizer
+recognizer = sr.Recognizer()
+microphone = sr.Microphone()
+
+# Initialize the language tool for grammar checking
+tool = LanguageTool('en-US')
+
+# Function for text-to-speech conversion
+def text_to_speech():
+    text = text_input.get("1.0", tk.END)
+    if text.strip():
+        try:
+            engine.setProperty('voice', voices[var.get()].id)
+            engine.say(text)
+            engine.runAndWait()
+            status_label.config(text="Status: Text converted to speech", fg="green")
+        except Exception as e:
+            status_label.config(text=f"Error: {e}", fg="red")
+    else:
+        status_label.config(text="Error: Please enter some text", fg="red")
+
+# Function for starting the speech-to-text conversion from microphone
+def start_recording():
+    status_label.config(text="Status: Listening...", fg="blue")
+    button_stop.config(state=tk.NORMAL)
+    button_start.config(state=tk.DISABLED)
+    try:
+        with microphone as source:
+            recognizer.adjust_for_ambient_noise(source)
+            audio = recognizer.listen(source, timeout=5)  # Adjust the timeout as needed
+            text = recognizer.recognize_google(audio)
+            text_input.delete('1.0', tk.END)  # Clear previous text in the input box
+            text_input.insert(tk.END, text)
+            status_label.config(text="Status: Speech converted to text", fg="green")
+    except sr.WaitTimeoutError:
+        status_label.config(text="Status: No speech detected. Try again.", fg="red")
+    except sr.UnknownValueError:
+        status_label.config(text="Status: Could not understand audio", fg="red")
+    except sr.RequestError as e:
+        status_label.config(text=f"Status: Error: {e}", fg="red")
+    button_stop.config(state=tk.DISABLED)
+    button_start.config(state=tk.NORMAL)
+
+# Function for stopping the speech-to-text conversion
+def stop_recording():
+    recognizer.stop()
+    engine.stop()  # Stop the ongoing speech
+    status_label.config(text="Status: Stopped recording", fg="red")
+
+# Function for checking grammatical errors
+def check_grammar():
+    text = text_input.get("1.0", tk.END)
+    matches = tool.check(text)
+    if len(matches) == 0:
+        error_label.config(text="No grammatical errors found", fg="green")
+        status_label.config(text="Status: No grammatical errors found", fg="green")
+    else:
+        errors = '\n'.join([match.message for match in matches])
+        suggestions = '\n'.join([match.replacements[0] for match in matches])
+        error_label.config(text=f"Grammatical Errors:\n{errors}\n\nSuggestions:\n{suggestions}", fg="red")
+        status_label.config(text="Status: Grammatical errors found", fg="red")
+
+# Function for fixing grammatical errors automatically
+def fix_grammar():
+    text = text_input.get("1.0", tk.END)
+    matches = tool.check(text)
+    if len(matches) > 0:
+        corrected_text = tool.correct(text)
+        text_input.delete("1.0", tk.END)
+        text_input.insert(tk.END, corrected_text)
+        error_label.config(text="Grammatical errors fixed automatically", fg="green")
+        status_label.config(text="Status: Grammatical errors fixed", fg="green")
+    else:
+        error_label.config(text="No grammatical errors found", fg="green")
+        status_label.config(text="Status: No grammatical errors found", fg="green")
+
+# Function to set the speech speed
+def set_speed(event):
+    speed = speed_var.get()
+    engine.setProperty('rate', int(speed) * 150)  # Adjust the rate based on the selected speed
+
+# List available voices
+voices = engine.getProperty('voices')
+
+# Create the main application window
+app = tk.Tk()
+app.title("Speech-to-Text and Text-to-Speech Application with Grammar Checking")
+app.geometry("600x800")
+
+# Create a label for instructions
+label = tk.Label(app, text="Enter or speak text below:", font=("Arial", 14))
+label.pack(pady=20)
+
+# Create a scrolledtext widget for text input
+text_input = scrolledtext.ScrolledText(app, wrap=tk.WORD, width=50, height=10, font=("Arial", 12))
+text_input.pack()
+
+# Create a button for text-to-speech conversion
+button_text_to_speech = tk.Button(app, text="Convert to Speech", command=text_to_speech, font=("Arial", 12), bg="lightblue", padx=20)
+button_text_to_speech.pack(pady=10)
+
+# Create a button for starting the speech-to-text conversion
+button_start = tk.Button(app, text="Start Recording", command=start_recording, font=("Arial", 12), bg="lightgreen", padx=20)
+button_start.pack(pady=10)
+
+# Create a button for stopping the speech-to-text conversion
+button_stop = tk.Button(app, text="Stop Recording", command=stop_recording, font=("Arial", 12), bg="lightcoral", padx=20, state=tk.DISABLED)
+button_stop.pack(pady=10)
+
+# Create a button for checking grammatical errors
+button_check_grammar = tk.Button(app, text="Check Grammar", command=check_grammar, font=("Arial", 12), bg="lightyellow", padx=20)
+button_check_grammar.pack(pady=10)
+
+# Create a button for fixing grammatical errors automatically
+button_fix_grammar = tk.Button(app, text="Fix Grammar", command=fix_grammar, font=("Arial", 12), bg="lightpink", padx=20)
+button_fix_grammar.pack(pady=10)
+
+# Create a label for status updates
+status_label = tk.Label(app, text="Status: Ready", fg="green", font=("Arial", 12))
+status_label.pack(pady=10)
+
+# Create a label for displaying grammatical errors
+error_label = tk.Label(app, text="", font=("Arial", 12))
+error_label.pack(pady=10)
+
+# Create a label for adjusting speech speed
+speed_label = tk.Label(app, text="Set Speech Speed:", font=("Arial", 12))
+speed_label.pack(pady=10)
+
+# Create a dropdown menu for adjusting speech speed
+speed_var = tk.StringVar(app)
+speed_values = ["0.75", "0.25", "0.5", "1", "1.25", "1.5", "1.75", "2"]
+speed_dropdown = ttk.Combobox(app, textvariable=speed_var, values=speed_values, state="readonly")
+speed_dropdown.pack(pady=5)
+speed_dropdown.current(3)  # Set the default speed to 1
+speed_dropdown.bind("<<ComboboxSelected>>", set_speed)
+
+# Voice selection
+var = tk.IntVar(app)
+for i, voice in enumerate(voices):
+    tk.Radiobutton(app, text=voice.name, variable=var, value=i).pack(anchor=tk.W)
+
+# Run the application
+app.mainloop()
